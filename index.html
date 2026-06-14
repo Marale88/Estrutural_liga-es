@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simulador de Ligações Estruturais - V1.1</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Tipo 3 - ligação por sobreposição simples</p>
+        <h1>Simulador de Ligações Estruturais - V1.1</h1>
+      </div>
+      <button id="lessonToggle" class="ghost-button" type="button">Ativar Modo Aula</button>
+    </header>
+
+    <main class="app-shell">
+      <aside class="panel input-panel" aria-label="Entradas do simulador">
+        <form id="inputForm">
+          <section>
+            <h2>Prancha A - azul</h2>
+            <label>Comprimento da Prancha A (mm)
+              <input id="lengthA" type="number" min="1" step="1" value="420" />
+            </label>
+            <label>Largura da Prancha A (mm)
+              <input id="widthA" type="number" min="1" step="1" value="180" />
+            </label>
+            <label>Espessura da Prancha A (mm)
+              <input id="thicknessA" type="number" min="1" step="1" value="18" />
+            </label>
+            <label>Material da Prancha A
+              <select id="plateMaterialA">
+                <option value="madeira" selected>Madeira estrutural genérica</option>
+                <option value="aco">Aço carbono comum</option>
+              </select>
+            </label>
+          </section>
+
+          <section>
+            <h2>Prancha B - amarela</h2>
+            <label>Comprimento da Prancha B (mm)
+              <input id="lengthB" type="number" min="1" step="1" value="420" />
+            </label>
+            <label>Largura da Prancha B (mm)
+              <input id="widthB" type="number" min="1" step="1" value="180" />
+            </label>
+            <label>Espessura da Prancha B (mm)
+              <input id="thicknessB" type="number" min="1" step="1" value="18" />
+            </label>
+            <label>Material da Prancha B
+              <select id="plateMaterialB">
+                <option value="madeira" selected>Madeira estrutural genérica</option>
+                <option value="aco">Aço carbono comum</option>
+              </select>
+            </label>
+          </section>
+
+          <section>
+            <h2>Sobreposição e conectores</h2>
+            <label>Comprimento da sobreposição (mm)
+              <input id="overlap" type="number" min="1" step="1" value="180" />
+            </label>
+            <label>Diâmetro do conector (mm)
+              <input id="diameter" type="number" min="1" step="1" value="12" />
+            </label>
+            <label>Quantidade de conectores
+              <select id="pinCount">
+                <option value="2">2 conectores</option>
+                <option value="4" selected>4 conectores</option>
+                <option value="6">6 conectores</option>
+              </select>
+            </label>
+            <label>Distância da borda inicial e1 (mm)
+              <input id="edgeStart" type="number" min="1" step="1" value="40" />
+            </label>
+            <label>Espaçamento entre conectores s (mm)
+              <input id="spacingLong" type="number" min="1" step="1" value="52" />
+            </label>
+            <label>Distância da borda final e2 (mm)
+              <input id="edgeEnd" type="number" min="1" step="1" value="40" />
+            </label>
+            <label>Distância entre linhas g (mm)
+              <input id="gauge" type="number" min="1" step="1" value="52" />
+            </label>
+          </section>
+
+          <section>
+            <h2>Carga aplicada</h2>
+            <label>Força aplicada P
+              <input id="force" type="number" min="0.01" step="0.1" value="18" />
+            </label>
+            <label>Unidade
+              <select id="forceUnit">
+                <option value="kN" selected>kN</option>
+                <option value="N">N</option>
+              </select>
+            </label>
+          </section>
+
+          <section>
+            <h2>Conector e montagem</h2>
+            <label>Tipo de conector
+              <select id="connectorType">
+                <option value="pino" selected>Pino</option>
+                <option value="parafuso">Parafuso</option>
+                <option value="prego">Prego</option>
+              </select>
+            </label>
+            <label>Material do conector
+              <select id="pinMaterial">
+                <option value="madeira">Madeira</option>
+                <option value="aco" selected>Aço carbono comum</option>
+                <option value="ferro">Ferro comum didático</option>
+              </select>
+            </label>
+            <div id="boltOptions" class="conditional-box">
+              <label class="inline-check">
+                <input id="hasWasher" type="checkbox" checked />
+                Adicionar arruela
+              </label>
+              <label class="inline-check">
+                <input id="hasNut" type="checkbox" checked />
+                Adicionar porca
+              </label>
+              <label>Diâmetro externo da arruela (mm)
+                <input id="washerDiameter" type="number" min="1" step="1" value="28" />
+              </label>
+              <label>Espessura da arruela (mm)
+                <input id="washerThickness" type="number" min="0.1" step="0.1" value="3" />
+              </label>
+              <label>Material da arruela
+                <select id="washerMaterial">
+                  <option value="aco" selected>Aço carbono comum</option>
+                  <option value="ferro">Ferro comum didático</option>
+                </select>
+              </label>
+            </div>
+            <label class="inline-check">
+              <input id="showDimensions" type="checkbox" checked />
+              Mostrar cotas
+            </label>
+          </section>
+        </form>
+      </aside>
+
+      <section class="stage-column">
+        <div id="warnings" class="warnings" aria-live="polite"></div>
+        <section class="panel drawing-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Representação da ligação Tipo 3</h2>
+              <p>Sobreposição simples: Prancha A e Prancha B alinhadas no mesmo eixo.</p>
+            </div>
+            <span id="overallPill" class="status-pill">Seguro</span>
+          </div>
+          <div id="forceBadge" class="force-badge"></div>
+          <div class="views-header">
+            <h3>Vista em planta</h3>
+            <p>Mostra o layout dos conectores e a região de sobreposição entre as pranchas.</p>
+          </div>
+          <div class="views-grid views-grid-single">
+            <article class="view-card view-card-wide">
+              <svg id="connectionSvg" viewBox="0 0 900 430" role="img" aria-label="Vista em planta da ligação por sobreposição"></svg>
+            </article>
+          </div>
+          <div id="criticalMode" class="critical-mode"></div>
+        </section>
+
+        <section class="panel explanation-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Explicação didática</h2>
+              <p>1 MPa = 1 N/mm². Valores de materiais são aproximados e educacionais.</p>
+            </div>
+          </div>
+          <div id="explanation"></div>
+        </section>
+      </section>
+
+      <aside class="panel results-panel" aria-label="Resultados">
+        <section id="summary"></section>
+        <section>
+          <h2>Verificações individuais</h2>
+          <div id="checks" class="checks-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="charts-section">
+      <div class="panel">
+        <h2>Gráficos de sensibilidade</h2>
+        <div class="charts-grid">
+          <canvas id="chartForce" width="420" height="220"></canvas>
+          <canvas id="chartDiameter" width="420" height="220"></canvas>
+          <canvas id="chartThickness" width="420" height="220"></canvas>
+          <canvas id="chartSpacing" width="420" height="220"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Este simulador tem finalidade educacional. Para projetos reais, consulte normas técnicas aplicáveis e profissional habilitado.
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>

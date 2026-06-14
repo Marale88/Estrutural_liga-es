@@ -3,205 +3,164 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Simulador de Ligações Estruturais - V1.1</title>
+    <title>Laboratório Virtual de Ligações Estruturais V1</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header class="app-header">
+    <header class="topbar">
       <div>
-        <p class="eyebrow">Tipo 3 - ligação por sobreposição simples</p>
-        <h1>Simulador de Ligações Estruturais - V1.1</h1>
+        <p class="eyebrow">Projeto V1 · educacional · sem normas técnicas</p>
+        <h1>Laboratório Virtual de Ligações Estruturais</h1>
       </div>
-      <button id="lessonToggle" class="ghost-button" type="button">Ativar Modo Aula</button>
+      <div class="mode-tabs" role="group" aria-label="Modo de operação">
+        <button class="mode-tab is-active" type="button" data-mode="didatico">Didático</button>
+        <button class="mode-tab" type="button" data-mode="engenharia">Engenharia</button>
+        <button class="mode-tab" type="button" data-mode="ruptura">Ruptura</button>
+      </div>
     </header>
 
-    <main class="app-shell">
-      <aside class="panel input-panel" aria-label="Entradas do simulador">
-        <form id="inputForm">
+    <main class="workspace">
+      <aside class="panel controls" aria-label="Parâmetros do laboratório">
+        <form id="labForm">
           <section>
-            <h2>Prancha A - azul</h2>
-            <label>Comprimento da Prancha A (mm)
-              <input id="lengthA" type="number" min="1" step="1" value="420" />
+            <h2>Sistema</h2>
+            <label>
+              Tipo de ligação
+              <select id="connectionType">
+                <option value="beamColumn">Tipo A · Viga × Pilar frontal</option>
+                <option value="beamBeam">Tipo B · Viga × Viga alinhada</option>
+                <option value="lap" selected>Tipo C · Emenda por sobreposição</option>
+                <option value="angle">Tipo D · Ligação por cantoneira</option>
+              </select>
             </label>
-            <label>Largura da Prancha A (mm)
-              <input id="widthA" type="number" min="1" step="1" value="180" />
-            </label>
-            <label>Espessura da Prancha A (mm)
-              <input id="thicknessA" type="number" min="1" step="1" value="18" />
-            </label>
-            <label>Material da Prancha A
-              <select id="plateMaterialA">
-                <option value="madeira" selected>Madeira estrutural genérica</option>
-                <option value="aco">Aço carbono comum</option>
+            <label>
+              Fixador principal
+              <select id="fastenerType">
+                <option value="nail">Pregos</option>
+                <option value="pin">Pinos</option>
+                <option value="bolt" selected>Parafusos</option>
               </select>
             </label>
           </section>
 
           <section>
-            <h2>Prancha B - amarela</h2>
-            <label>Comprimento da Prancha B (mm)
-              <input id="lengthB" type="number" min="1" step="1" value="420" />
-            </label>
-            <label>Largura da Prancha B (mm)
-              <input id="widthB" type="number" min="1" step="1" value="180" />
-            </label>
-            <label>Espessura da Prancha B (mm)
-              <input id="thicknessB" type="number" min="1" step="1" value="18" />
-            </label>
-            <label>Material da Prancha B
-              <select id="plateMaterialB">
-                <option value="madeira" selected>Madeira estrutural genérica</option>
-                <option value="aco">Aço carbono comum</option>
-              </select>
-            </label>
-          </section>
-
-          <section>
-            <h2>Sobreposição e conectores</h2>
-            <label>Comprimento da sobreposição (mm)
-              <input id="overlap" type="number" min="1" step="1" value="180" />
-            </label>
-            <label>Diâmetro do conector (mm)
-              <input id="diameter" type="number" min="1" step="1" value="12" />
-            </label>
-            <label>Quantidade de conectores
-              <select id="pinCount">
-                <option value="2">2 conectores</option>
-                <option value="4" selected>4 conectores</option>
-                <option value="6">6 conectores</option>
-              </select>
-            </label>
-            <label>Distância da borda inicial e1 (mm)
-              <input id="edgeStart" type="number" min="1" step="1" value="40" />
-            </label>
-            <label>Espaçamento entre conectores s (mm)
-              <input id="spacingLong" type="number" min="1" step="1" value="52" />
-            </label>
-            <label>Distância da borda final e2 (mm)
-              <input id="edgeEnd" type="number" min="1" step="1" value="40" />
-            </label>
-            <label>Distância entre linhas g (mm)
-              <input id="gauge" type="number" min="1" step="1" value="52" />
-            </label>
-          </section>
-
-          <section>
-            <h2>Carga aplicada</h2>
-            <label>Força aplicada P
-              <input id="force" type="number" min="0.01" step="0.1" value="18" />
-            </label>
-            <label>Unidade
-              <select id="forceUnit">
-                <option value="kN" selected>kN</option>
-                <option value="N">N</option>
-              </select>
-            </label>
-          </section>
-
-          <section>
-            <h2>Conector e montagem</h2>
-            <label>Tipo de conector
-              <select id="connectorType">
-                <option value="pino" selected>Pino</option>
-                <option value="parafuso">Parafuso</option>
-                <option value="prego">Prego</option>
-              </select>
-            </label>
-            <label>Material do conector
-              <select id="pinMaterial">
-                <option value="madeira">Madeira</option>
-                <option value="aco" selected>Aço carbono comum</option>
-                <option value="ferro">Ferro comum didático</option>
-              </select>
-            </label>
-            <div id="boltOptions" class="conditional-box">
-              <label class="inline-check">
-                <input id="hasWasher" type="checkbox" checked />
-                Adicionar arruela
-              </label>
-              <label class="inline-check">
-                <input id="hasNut" type="checkbox" checked />
-                Adicionar porca
-              </label>
-              <label>Diâmetro externo da arruela (mm)
-                <input id="washerDiameter" type="number" min="1" step="1" value="28" />
-              </label>
-              <label>Espessura da arruela (mm)
-                <input id="washerThickness" type="number" min="0.1" step="0.1" value="3" />
-              </label>
-              <label>Material da arruela
-                <select id="washerMaterial">
-                  <option value="aco" selected>Aço carbono comum</option>
-                  <option value="ferro">Ferro comum didático</option>
-                </select>
-              </label>
+            <h2>Elementos</h2>
+            <div class="grid-two">
+              <label>Viga A · comprimento (mm)<input id="beamALength" type="number" min="50" value="600" /></label>
+              <label>Viga A · largura b (mm)<input id="beamAWidth" type="number" min="20" value="180" /></label>
+              <label>Viga A · altura h (mm)<input id="beamAHeight" type="number" min="20" value="90" /></label>
+              <label>Material da Viga A<select id="beamAMaterial"></select></label>
             </div>
-            <label class="inline-check">
-              <input id="showDimensions" type="checkbox" checked />
-              Mostrar cotas
-            </label>
+            <div class="grid-two">
+              <label>Viga B/Pilar · largura (mm)<input id="beamBWidth" type="number" min="20" value="180" /></label>
+              <label>Viga B/Pilar · altura (mm)<input id="beamBHeight" type="number" min="20" value="120" /></label>
+              <label>Chapa · espessura (mm)<input id="plateThickness" type="number" min="1" value="8" /></label>
+              <label>Material da chapa<select id="plateMaterial"></select></label>
+            </div>
+          </section>
+
+          <section>
+            <h2>Fixadores e posicionamento</h2>
+            <div class="grid-two">
+              <label>Diâmetro d (mm)<input id="diameter" type="number" min="1" value="12" /></label>
+              <label>Comprimento (mm)<input id="fastenerLength" type="number" min="1" value="80" /></label>
+              <label>Linhas<input id="rows" type="number" min="1" max="4" value="2" /></label>
+              <label>Colunas<input id="cols" type="number" min="1" max="5" value="2" /></label>
+              <label>Espaçamento s (mm)<input id="spacing" type="number" min="1" value="60" /></label>
+              <label>Distância de borda e (mm)<input id="edge" type="number" min="1" value="45" /></label>
+            </div>
+            <label class="checkline"><input id="hasWasher" type="checkbox" checked /> Usar arruela</label>
+            <label class="checkline"><input id="hasNut" type="checkbox" checked /> Usar porca</label>
+          </section>
+
+          <section>
+            <h2>Cargas</h2>
+            <div class="grid-two">
+              <label>Tração P (kN)<input id="loadP" type="number" min="0" step="0.5" value="18" /></label>
+              <label>Compressão N (kN)<input id="loadN" type="number" min="0" step="0.5" value="0" /></label>
+              <label>Cortante V (kN)<input id="loadV" type="number" min="0" step="0.5" value="12" /></label>
+              <label>Momento M (kN·m)<input id="loadM" type="number" min="0" step="0.1" value="0.8" /></label>
+              <label>Torque T (kN·m)<input id="loadT" type="number" min="0" step="0.1" value="0" /></label>
+              <label>Fator de ruptura<input id="loadFactor" type="range" min="0" max="3" step="0.05" value="1" /></label>
+            </div>
+            <p class="hint">No modo Ruptura, aumente o fator até aparecer a falha governante.</p>
           </section>
         </form>
       </aside>
 
-      <section class="stage-column">
-        <div id="warnings" class="warnings" aria-live="polite"></div>
-        <section class="panel drawing-panel">
-          <div class="panel-heading">
+      <section class="stage">
+        <section class="panel hero-panel">
+          <div class="panel-title">
             <div>
-              <h2>Representação da ligação Tipo 3</h2>
-              <p>Sobreposição simples: Prancha A e Prancha B alinhadas no mesmo eixo.</p>
+              <p id="connectionLabel" class="eyebrow">Tipo C · Emenda por sobreposição</p>
+              <h2>Fluxo visual da ligação</h2>
             </div>
-            <span id="overallPill" class="status-pill">Seguro</span>
+            <span id="statusBadge" class="status safe">Seguro</span>
           </div>
-          <div id="forceBadge" class="force-badge"></div>
-          <div class="views-header">
-            <h3>Vista em planta</h3>
-            <p>Mostra o layout dos conectores e a região de sobreposição entre as pranchas.</p>
-          </div>
-          <div class="views-grid views-grid-single">
-            <article class="view-card view-card-wide">
-              <svg id="connectionSvg" viewBox="0 0 900 430" role="img" aria-label="Vista em planta da ligação por sobreposição"></svg>
+          <div id="loadPath" class="load-path" aria-label="Caminho das cargas"></div>
+          <div class="views">
+            <article class="view is-wide">
+              <div class="view-head">
+                <h3>Vista planta</h3>
+                <p>Geometria, fixadores e caminho das forças.</p>
+              </div>
+              <svg id="planSvg" role="img" aria-label="Vista planta da ligação"></svg>
+            </article>
+            <article class="view">
+              <div class="view-head">
+                <h3>Vista corte</h3>
+                <p>Espessuras, chapa, porca e arruela.</p>
+              </div>
+              <svg id="sectionSvg" role="img" aria-label="Vista em corte da ligação"></svg>
+            </article>
+            <article class="view">
+              <div class="view-head">
+                <h3>Vista isométrica</h3>
+                <p>Modelo 3D simplificado para leitura espacial.</p>
+              </div>
+              <svg id="isoSvg" role="img" aria-label="Vista isométrica simplificada"></svg>
             </article>
           </div>
-          <div id="criticalMode" class="critical-mode"></div>
         </section>
 
-        <section class="panel explanation-panel">
-          <div class="panel-heading">
-            <div>
-              <h2>Explicação didática</h2>
-              <p>1 MPa = 1 N/mm². Valores de materiais são aproximados e educacionais.</p>
-            </div>
-          </div>
-          <div id="explanation"></div>
+        <section class="panel explanation">
+          <h2 id="modeTitle">Modo Didático</h2>
+          <div id="modeContent"></div>
         </section>
       </section>
 
-      <aside class="panel results-panel" aria-label="Resultados">
-        <section id="summary"></section>
+      <aside class="panel results" aria-label="Resultados do cálculo">
         <section>
-          <h2>Verificações individuais</h2>
-          <div id="checks" class="checks-list"></div>
+          <h2>Resultado global</h2>
+          <div id="governingFailure" class="governing"></div>
+          <div id="summaryCards" class="summary-cards"></div>
+        </section>
+        <section>
+          <h2>Mapa de tensões</h2>
+          <div id="stressMap" class="stress-map"></div>
+        </section>
+        <section>
+          <h2>Verificações</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Elemento</th>
+                  <th>Tensão</th>
+                  <th>Resistência</th>
+                  <th>Utilização</th>
+                </tr>
+              </thead>
+              <tbody id="checksTable"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="export-actions">
+          <button id="exportPng" type="button">Exportar PNG</button>
+          <button id="printReport" type="button">Relatório/PDF</button>
         </section>
       </aside>
     </main>
-
-    <section class="charts-section">
-      <div class="panel">
-        <h2>Gráficos de sensibilidade</h2>
-        <div class="charts-grid">
-          <canvas id="chartForce" width="420" height="220"></canvas>
-          <canvas id="chartDiameter" width="420" height="220"></canvas>
-          <canvas id="chartThickness" width="420" height="220"></canvas>
-          <canvas id="chartSpacing" width="420" height="220"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <footer>
-      Este simulador tem finalidade educacional. Para projetos reais, consulte normas técnicas aplicáveis e profissional habilitado.
-    </footer>
 
     <script src="script.js"></script>
   </body>

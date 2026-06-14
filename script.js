@@ -1,766 +1,508 @@
-const pinMaterials = {
-  madeira: { name: "Madeira estrutural genérica", shear: 5, axial: 10 },
-  aco: { name: "Aço carbono comum", shear: 140, axial: 250 },
-  ferro: { name: "Ferro comum didático", shear: 90, axial: 170 },
+const materials = {
+  pinus: { name: "Pinus", ft: 45, fc: 32, fv: 6, E: 8500, fy: 0, fu: 45 },
+  eucalipto: { name: "Eucalipto", ft: 75, fc: 52, fv: 9, E: 14500, fy: 0, fu: 75 },
+  ipe: { name: "Ipê", ft: 115, fc: 78, fv: 13, E: 21000, fy: 0, fu: 115 },
+  compensado: { name: "Compensado", ft: 32, fc: 28, fv: 4.5, E: 6500, fy: 0, fu: 32 },
+  mdf: { name: "MDF", ft: 18, fc: 22, fv: 3, E: 3000, fy: 0, fu: 18 },
+  a36: { name: "Aço ASTM A36", ft: 250, fc: 250, fv: 145, E: 200000, fy: 250, fu: 400 },
+  sae1020: { name: "SAE 1020", ft: 300, fc: 300, fv: 170, E: 205000, fy: 300, fu: 420 },
+  sae1045: { name: "SAE 1045", ft: 530, fc: 530, fv: 300, E: 205000, fy: 530, fu: 625 },
+  inox: { name: "Inox", ft: 215, fc: 215, fv: 125, E: 193000, fy: 215, fu: 505 },
+  aluminio: { name: "Alumínio", ft: 150, fc: 150, fv: 85, E: 69000, fy: 150, fu: 240 },
 };
 
-const plateMaterials = {
-  madeira: { name: "Madeira estrutural genérica", tension: 8, bearing: 12 },
-  aco: { name: "Aço carbono comum", tension: 250, bearing: 250 },
-};
-
-const state = { lessonMode: false };
-
-const els = {
-  form: document.querySelector("#inputForm"),
-  svg: document.querySelector("#connectionSvg"),
-  warnings: document.querySelector("#warnings"),
-  overallPill: document.querySelector("#overallPill"),
-  forceBadge: document.querySelector("#forceBadge"),
-  criticalMode: document.querySelector("#criticalMode"),
-  summary: document.querySelector("#summary"),
-  checks: document.querySelector("#checks"),
-  explanation: document.querySelector("#explanation"),
-  lessonToggle: document.querySelector("#lessonToggle"),
-  boltOptions: document.querySelector("#boltOptions"),
-  charts: {
-    force: document.querySelector("#chartForce"),
-    diameter: document.querySelector("#chartDiameter"),
-    thickness: document.querySelector("#chartThickness"),
-    spacing: document.querySelector("#chartSpacing"),
+const connectionTypes = {
+  beamColumn: {
+    label: "Tipo A · Viga × Pilar frontal",
+    path: ["Carga", "Viga", "Fixadores", "Chapa", "Fixadores", "Pilar"],
+    description: "A força sai da viga, atravessa o grupo de fixadores e entra no pilar pela chapa frontal.",
+  },
+  beamBeam: {
+    label: "Tipo B · Viga × Viga alinhada",
+    path: ["Carga", "Viga A", "Fixadores", "Chapa", "Viga B"],
+    description: "As vigas trabalham alinhadas e a chapa ajuda a transferir tração, cortante e momento.",
+  },
+  lap: {
+    label: "Tipo C · Emenda por sobreposição",
+    path: ["Carga", "Viga A", "Fixadores", "Sobreposição", "Viga B"],
+    description: "A região sobreposta transforma a carga axial em cisalhamento nos fixadores e esmagamento local.",
+  },
+  angle: {
+    label: "Tipo D · Ligação por cantoneira",
+    path: ["Carga", "Viga", "Fixadores", "Cantoneira", "Fixadores", "Apoio"],
+    description: "A cantoneira cria duas abas resistentes e adiciona uma leitura didática de excentricidade.",
   },
 };
 
-const inputs = {
-  lengthA: document.querySelector("#lengthA"),
-  widthA: document.querySelector("#widthA"),
-  thicknessA: document.querySelector("#thicknessA"),
-  plateMaterialA: document.querySelector("#plateMaterialA"),
-  lengthB: document.querySelector("#lengthB"),
-  widthB: document.querySelector("#widthB"),
-  thicknessB: document.querySelector("#thicknessB"),
-  plateMaterialB: document.querySelector("#plateMaterialB"),
-  overlap: document.querySelector("#overlap"),
-  diameter: document.querySelector("#diameter"),
-  pinCount: document.querySelector("#pinCount"),
-  edgeStart: document.querySelector("#edgeStart"),
-  spacingLong: document.querySelector("#spacingLong"),
-  edgeEnd: document.querySelector("#edgeEnd"),
-  gauge: document.querySelector("#gauge"),
-  force: document.querySelector("#force"),
-  forceUnit: document.querySelector("#forceUnit"),
-  connectorType: document.querySelector("#connectorType"),
-  pinMaterial: document.querySelector("#pinMaterial"),
-  hasWasher: document.querySelector("#hasWasher"),
-  hasNut: document.querySelector("#hasNut"),
-  washerDiameter: document.querySelector("#washerDiameter"),
-  washerThickness: document.querySelector("#washerThickness"),
-  washerMaterial: document.querySelector("#washerMaterial"),
-  showDimensions: document.querySelector("#showDimensions"),
+const fastenerTypes = {
+  nail: { label: "Pregos", material: "sae1020", checks: ["cisalhamento", "arrancamento", "esmagamento", "arrancamento da cabeça"] },
+  pin: { label: "Pinos", material: "sae1045", checks: ["cisalhamento", "esmagamento", "arrancamento"] },
+  bolt: { label: "Parafusos", material: "a36", checks: ["cisalhamento", "esmagamento", "seção líquida", "atrito didático"] },
 };
 
-function lerInputs() {
-  const connectorType = inputs.connectorType.value;
+const state = {
+  mode: "didatico",
+};
+
+const $ = (selector) => document.querySelector(selector);
+const form = $("#labForm");
+const modeTabs = [...document.querySelectorAll(".mode-tab")];
+
+const inputs = {
+  connectionType: $("#connectionType"),
+  fastenerType: $("#fastenerType"),
+  beamALength: $("#beamALength"),
+  beamAWidth: $("#beamAWidth"),
+  beamAHeight: $("#beamAHeight"),
+  beamAMaterial: $("#beamAMaterial"),
+  beamBWidth: $("#beamBWidth"),
+  beamBHeight: $("#beamBHeight"),
+  plateThickness: $("#plateThickness"),
+  plateMaterial: $("#plateMaterial"),
+  diameter: $("#diameter"),
+  fastenerLength: $("#fastenerLength"),
+  rows: $("#rows"),
+  cols: $("#cols"),
+  spacing: $("#spacing"),
+  edge: $("#edge"),
+  hasWasher: $("#hasWasher"),
+  hasNut: $("#hasNut"),
+  loadP: $("#loadP"),
+  loadN: $("#loadN"),
+  loadV: $("#loadV"),
+  loadM: $("#loadM"),
+  loadT: $("#loadT"),
+  loadFactor: $("#loadFactor"),
+};
+
+const els = {
+  connectionLabel: $("#connectionLabel"),
+  statusBadge: $("#statusBadge"),
+  loadPath: $("#loadPath"),
+  planSvg: $("#planSvg"),
+  sectionSvg: $("#sectionSvg"),
+  isoSvg: $("#isoSvg"),
+  modeTitle: $("#modeTitle"),
+  modeContent: $("#modeContent"),
+  governingFailure: $("#governingFailure"),
+  summaryCards: $("#summaryCards"),
+  stressMap: $("#stressMap"),
+  checksTable: $("#checksTable"),
+  exportPng: $("#exportPng"),
+  printReport: $("#printReport"),
+};
+
+function boot() {
+  fillMaterialSelect(inputs.beamAMaterial, ["pinus", "eucalipto", "ipe", "compensado", "mdf", "a36", "aluminio"], "eucalipto");
+  fillMaterialSelect(inputs.plateMaterial, ["a36", "sae1020", "sae1045", "inox", "aluminio", "compensado"], "a36");
+
+  form.addEventListener("input", render);
+  form.addEventListener("change", render);
+  modeTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      state.mode = tab.dataset.mode;
+      modeTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+      render();
+    });
+  });
+  els.printReport.addEventListener("click", () => window.print());
+  els.exportPng.addEventListener("click", exportPlanPng);
+  render();
+}
+
+function fillMaterialSelect(select, keys, selected) {
+  select.innerHTML = keys.map((key) => `<option value="${key}">${materials[key].name}</option>`).join("");
+  select.value = selected;
+}
+
+function readData() {
+  const factor = Number(inputs.loadFactor.value);
+  const rows = clamp(Math.round(Number(inputs.rows.value)), 1, 4);
+  const cols = clamp(Math.round(Number(inputs.cols.value)), 1, 5);
   return {
-    lengthA: Number(inputs.lengthA.value),
-    widthA: Number(inputs.widthA.value),
-    thicknessA: Number(inputs.thicknessA.value),
-    plateMaterialAKey: inputs.plateMaterialA.value,
-    lengthB: Number(inputs.lengthB.value),
-    widthB: Number(inputs.widthB.value),
-    thicknessB: Number(inputs.thicknessB.value),
-    plateMaterialBKey: inputs.plateMaterialB.value,
-    overlap: Number(inputs.overlap.value),
-    diameter: Number(inputs.diameter.value),
-    pinCount: Number(inputs.pinCount.value),
-    edgeStart: Number(inputs.edgeStart.value),
-    spacingLong: Number(inputs.spacingLong.value),
-    edgeEnd: Number(inputs.edgeEnd.value),
-    gauge: Number(inputs.gauge.value),
-    spacing: Math.min(Number(inputs.edgeStart.value), Number(inputs.edgeEnd.value)),
-    force: Number(inputs.force.value),
-    forceUnit: inputs.forceUnit.value,
-    connectorType,
-    pinMaterialKey: inputs.pinMaterial.value,
-    hasWasher: connectorType === "parafuso" && inputs.hasWasher.checked,
-    hasNut: connectorType === "parafuso" && inputs.hasNut.checked,
-    washerDiameter: Number(inputs.washerDiameter.value),
-    washerThickness: Number(inputs.washerThickness.value),
-    washerMaterialKey: inputs.washerMaterial.value,
-    showDimensions: inputs.showDimensions.checked,
+    connectionType: inputs.connectionType.value,
+    fastenerType: inputs.fastenerType.value,
+    beamALength: num(inputs.beamALength),
+    beamAWidth: num(inputs.beamAWidth),
+    beamAHeight: num(inputs.beamAHeight),
+    beamAMaterial: inputs.beamAMaterial.value,
+    beamBWidth: num(inputs.beamBWidth),
+    beamBHeight: num(inputs.beamBHeight),
+    plateThickness: num(inputs.plateThickness),
+    plateMaterial: inputs.plateMaterial.value,
+    diameter: num(inputs.diameter),
+    fastenerLength: num(inputs.fastenerLength),
+    rows,
+    cols,
+    spacing: num(inputs.spacing),
+    edge: num(inputs.edge),
+    hasWasher: inputs.hasWasher.checked,
+    hasNut: inputs.hasNut.checked,
+    loadP: num(inputs.loadP) * 1000 * factor,
+    loadN: num(inputs.loadN) * 1000 * factor,
+    loadV: num(inputs.loadV) * 1000 * factor,
+    loadM: num(inputs.loadM) * 1000000 * factor,
+    loadT: num(inputs.loadT) * 1000000 * factor,
+    factor,
   };
 }
 
-function converterUnidades(data) {
-  return { ...data, forceN: data.forceUnit === "kN" ? data.force * 1000 : data.force };
-}
+function analyze(data) {
+  const beam = materials[data.beamAMaterial];
+  const plate = materials[data.plateMaterial];
+  const fastener = materials[fastenerTypes[data.fastenerType].material];
+  const count = data.rows * data.cols;
+  const shearDemand = Math.hypot(data.loadP, data.loadV) / Math.max(1, count);
+  const fastenerArea = Math.PI * data.diameter ** 2 / 4;
+  const beamArea = data.beamAWidth * data.beamAHeight;
+  const inertia = data.beamAWidth * data.beamAHeight ** 3 / 12;
+  const sectionModulus = inertia / (data.beamAHeight / 2);
+  const netArea = Math.max(1, (data.beamAWidth - data.rows * data.diameter) * data.beamAHeight);
+  const polar = Math.PI * data.diameter ** 4 / 32;
+  const effectiveLength = data.beamALength;
+  const k = 1;
+  const pcr = Math.PI ** 2 * beam.E * inertia / (k * effectiveLength) ** 2;
+  const washerBoost = data.hasWasher ? 1.15 : 1;
+  const nutBoost = data.hasNut ? 1.08 : 1;
+  const pulloutArea = Math.max(1, data.edge * data.beamAHeight * count);
 
-function obterMaterialPino(key) {
-  return pinMaterials[key];
-}
-
-function obterMaterialPrancha(key) {
-  return plateMaterials[key];
-}
-
-function nomeConector(type) {
-  return { pino: "pino", parafuso: "parafuso", prego: "prego" }[type] || "conector";
-}
-
-function getLayoutShape(pinCount) {
-  return {
-    cols: pinCount === 6 ? 3 : 2,
-    rows: pinCount === 2 ? 1 : 2,
-  };
-}
-
-function dimensoesMinimas(data) {
-  const { cols, rows } = getLayoutShape(data.pinCount);
-  return {
-    overlap: data.edgeStart + Math.max(0, cols - 1) * data.spacingLong + data.edgeEnd,
-    width: rows === 1 ? 2 * data.diameter : (rows - 1) * data.gauge + 2 * data.diameter,
-  };
-}
-
-function calcularLayoutPinos(data) {
-  const { cols, rows } = getLayoutShape(data.pinCount);
-  const groupW = (cols - 1) * data.spacingLong;
-  const groupH = (rows - 1) * data.gauge;
-  const pins = [];
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      pins.push({
-        x: data.edgeStart + col * data.spacingLong,
-        y: Math.min(data.widthA, data.widthB) / 2 - groupH / 2 + row * data.gauge,
-        row,
-        col,
-      });
-    }
-  }
-
-  return { pins, rows, cols, groupW, groupH, pitch: data.spacingLong };
-}
-
-function validarLayout(data, layout, materialA, materialB, pinMaterial) {
-  const errors = [];
-  const warnings = [];
-  const min = dimensoesMinimas(data);
-  const minPlateWidth = Math.min(data.widthA, data.widthB);
-
-  if (!materialA || !materialB || !pinMaterial) errors.push("Alguma propriedade de material está ausente.");
-  if (data.thicknessA <= 0 || data.thicknessB <= 0) errors.push("As espessuras das pranchas devem ser maiores que zero.");
-  if (data.lengthA <= 0 || data.lengthB <= 0 || data.widthA <= 0 || data.widthB <= 0) errors.push("Comprimentos e larguras devem ser maiores que zero.");
-  if (data.forceN <= 0) errors.push("A força aplicada deve ser maior que zero.");
-  if (data.diameter <= 0) errors.push("O diâmetro do conector deve ser maior que zero.");
-  if (data.edgeStart <= 0 || data.edgeEnd <= 0) errors.push("As distâncias de borda e1/e2 devem ser maiores que zero.");
-  if (data.spacingLong <= 0) errors.push("O espaçamento entre conectores s deve ser maior que zero.");
-  if (data.gauge <= 0) errors.push("A distância transversal g deve ser maior que zero.");
-  if (data.overlap <= 0) errors.push("O comprimento de sobreposição deve ser maior que zero.");
-  if (data.overlap > data.lengthA || data.overlap > data.lengthB) errors.push("A sobreposição não pode ser maior que o comprimento de uma das pranchas.");
-  if (data.diameter > data.widthA || data.diameter > data.widthB) errors.push("O diâmetro do conector é maior que a largura de uma das pranchas.");
-  if (data.overlap < min.overlap) errors.push("O layout dos conectores não cabe na região de sobreposição.");
-  if (minPlateWidth < min.width) errors.push("O layout dos conectores não cabe na largura das pranchas.");
-  if (data.edgeStart < 2 * data.diameter) warnings.push(`A distância e1 está menor que 2d (${format(2 * data.diameter)} mm).`);
-  if (data.edgeEnd < 2 * data.diameter) warnings.push(`A distância e2 está menor que 2d (${format(2 * data.diameter)} mm).`);
-  if (layout.cols > 1 && data.spacingLong < 3 * data.diameter) warnings.push(`O espaçamento s está menor que 3d (${format(3 * data.diameter)} mm).`);
-  if (layout.rows > 1 && data.gauge < 3 * data.diameter) warnings.push(`A distância g está menor que 3d (${format(3 * data.diameter)} mm).`);
-  if (data.connectorType === "prego") warnings.push("Prego usa as verificações gerais desta etapa. Arrancamento e flexão específicos entram em uma versão futura.");
-
-  return {
-    errors,
-    warnings,
-    minOverlap: min.overlap,
-    minWidth: min.width,
-    edgeLongitudinal: Math.min(data.edgeStart, data.edgeEnd),
-    edgeTransverse: Math.max(0, (minPlateWidth - layout.groupH) / 2 - data.diameter / 2),
-    controllingEdge: Math.min(data.edgeStart, data.edgeEnd, Math.max(0, (minPlateWidth - layout.groupH) / 2 - data.diameter / 2)),
-  };
-}
-
-function calcularDistribuicaoCarga(data) {
-  return data.forceN / data.pinCount;
-}
-
-function calcularTaxaUtilizacao(value, admissible) {
-  return admissible > 0 ? value / admissible : Infinity;
-}
-
-function verificarStatus(utilization) {
-  if (!Number.isFinite(utilization)) return { label: "Falha", key: "fail" };
-  if (utilization <= 0.7) return { label: "Seguro", key: "safe" };
-  if (utilization <= 1) return { label: "Próximo do limite", key: "warn" };
-  return { label: "Falha", key: "fail" };
-}
-
-function makeCheck(id, name, shortName, formula, symbol, calculated, admissible, utilization, details) {
-  const safetyFactor = calculated > 0 ? admissible / calculated : Infinity;
-  return { id, name, shortName, formula, symbol, calculated, admissible, utilization, safetyFactor, status: verificarStatus(utilization), details };
-}
-
-function calcularCisalhamentoPino(data, pinMaterial, forcePerPin) {
-  const area = Math.PI * data.diameter ** 2 / 4;
-  const stress = forcePerPin / area;
-  const label = nomeConector(data.connectorType);
-  return makeCheck("pin-shear", `Cisalhamento do ${label}`, `Cisalhamento do ${label}`, "τ = Fcon / A", "τ", stress, pinMaterial.shear, calcularTaxaUtilizacao(stress, pinMaterial.shear), [
-    `Força por conector: ${format(forcePerPin)} N`,
-    `Área do conector: ${format(area)} mm²`,
-    `Material: ${pinMaterial.name}`,
-  ]);
-}
-
-function calcularEsmagamentoPrancha(label, id, data, plateMaterial, thickness, forcePerPin) {
-  const area = data.diameter * thickness;
-  const stress = forcePerPin / area;
-  return makeCheck(id, `Esmagamento no furo da Prancha ${label}`, `Esmagamento - Prancha ${label}`, "σb = Fcon / (d · t)", "σb", stress, plateMaterial.bearing, calcularTaxaUtilizacao(stress, plateMaterial.bearing), [
-    `Prancha ${label}`,
-    `Diâmetro: ${format(data.diameter)} mm`,
-    `Espessura: ${format(thickness)} mm`,
-  ]);
-}
-
-function calcularArrancamentoBorda(label, id, plateMaterial, thickness, forcePerPin, validation) {
-  const area = validation.controllingEdge * thickness;
-  const stress = area > 0 ? forcePerPin / area : Infinity;
-  return makeCheck(id, `Arrancamento da borda da Prancha ${label}`, `Arrancamento - Prancha ${label}`, "σarr = Fcon / (e · t)", "σarr", stress, plateMaterial.tension, calcularTaxaUtilizacao(stress, plateMaterial.tension), [
-    `Prancha ${label}`,
-    `Distância crítica: ${format(validation.controllingEdge)} mm`,
-    `Área resistente aproximada: ${format(area)} mm²`,
-  ]);
-}
-
-function calcularTracaoSecaoLiquida(label, id, data, plateMaterial, width, thickness) {
-  const holes = data.pinCount === 2 ? 1 : 2;
-  const grossArea = width * thickness;
-  const netArea = (width - holes * data.diameter) * thickness;
-  const stress = netArea > 0 ? data.forceN / netArea : Infinity;
-  const check = makeCheck(id, `Tração da seção líquida da Prancha ${label}`, `Seção líquida - Prancha ${label}`, "σt = P / Aliq", "σt", stress, plateMaterial.tension, calcularTaxaUtilizacao(stress, plateMaterial.tension), [
-    `Prancha ${label}`,
-    `Área bruta: ${format(grossArea)} mm²`,
-    `Área líquida: ${format(netArea)} mm²`,
-    `Furos na seção crítica: ${holes}`,
-  ]);
-  check.netArea = netArea;
-  return check;
-}
-
-function encontrarModoCritico(checks) {
-  return checks.reduce((critical, check) => (check.utilization > critical.utilization ? check : critical), checks[0]);
-}
-
-function calcularTudo(overrides = {}) {
-  const raw = { ...lerInputs(), ...overrides };
-  const data = converterUnidades(raw);
-  const pinMaterial = obterMaterialPino(data.pinMaterialKey);
-  const materialA = obterMaterialPrancha(data.plateMaterialAKey);
-  const materialB = obterMaterialPrancha(data.plateMaterialBKey);
-  const layout = calcularLayoutPinos(data);
-  const validation = validarLayout(data, layout, materialA, materialB, pinMaterial);
-  const forcePerPin = calcularDistribuicaoCarga(data);
   const checks = [
-    calcularCisalhamentoPino(data, pinMaterial, forcePerPin),
-    calcularEsmagamentoPrancha("A", "bearing-a", data, materialA, data.thicknessA, forcePerPin),
-    calcularEsmagamentoPrancha("B", "bearing-b", data, materialB, data.thicknessB, forcePerPin),
-    calcularArrancamentoBorda("A", "edge-a", materialA, data.thicknessA, forcePerPin, validation),
-    calcularArrancamentoBorda("B", "edge-b", materialB, data.thicknessB, forcePerPin, validation),
-    calcularTracaoSecaoLiquida("A", "net-a", data, materialA, data.widthA, data.thicknessA),
-    calcularTracaoSecaoLiquida("B", "net-b", data, materialB, data.widthB, data.thicknessB),
+    check("Fixadores", "Cisalhamento", shearDemand / fastenerArea, fastener.fv, "τ = V/A"),
+    check("Viga A", "Esmagamento local", shearDemand / (data.diameter * data.beamAHeight), beam.fc * washerBoost, "σb = V/(d·t)"),
+    check("Chapa", "Esmagamento local", shearDemand / (data.diameter * data.plateThickness), plate.fc * washerBoost, "σb = V/(d·t)"),
+    check("Viga A", "Arrancamento", Math.hypot(data.loadP, data.loadV) / pulloutArea, beam.fv * nutBoost, "σarr = V/(e·t)"),
+    check("Viga A", "Seção líquida", data.loadP / netArea, beam.ft, "σ = P/Al"),
+    check("Viga A", "Flexão", data.loadM / Math.max(1, sectionModulus), beam.ft, "σ = M/W"),
+    check("Viga A", "Compressão", data.loadN / Math.max(1, beamArea), beam.fc, "σ = N/A"),
+    check("Viga A", "Compressão + flexão", data.loadN / Math.max(1, beamArea) + data.loadM / Math.max(1, sectionModulus), beam.fc, "σ = N/A + M/W"),
+    check("Fixadores", "Torção", (data.loadT * data.diameter / 2) / Math.max(1, polar * count), fastener.fv, "τ = T·r/J"),
+    check("Viga A", "Flambagem", data.loadN, pcr, "N ≤ Pcr"),
   ];
-  const critical = encontrarModoCritico(checks);
-  const geometryError = validation.errors.length > 0;
-  const overallStatus = geometryError ? { label: "Layout inválido", key: "fail" } : critical.status;
-  return { data, pinMaterial, materialA, materialB, layout, validation, forcePerPin, checks, critical, overallStatus, geometryError };
+
+  if (data.connectionType === "angle") {
+    checks.push(check("Cantoneira", "Flexão simplificada na aba", (data.loadV * data.edge) / Math.max(1, data.plateThickness * data.edge ** 2 / 6), plate.fy || plate.ft, "σ = M/W"));
+  }
+
+  const governing = checks.reduce((max, item) => (item.utilization > max.utilization ? item : max), checks[0]);
+  const status = governing.utilization >= 1 ? "failed" : governing.utilization >= 0.8 ? "warning" : "safe";
+  const reactions = {
+    horizontal: data.loadP / 1000,
+    vertical: (data.loadV + data.loadN) / 1000,
+    moment: data.loadM / 1000000,
+  };
+
+  return {
+    beam,
+    plate,
+    fastener,
+    count,
+    checks,
+    governing,
+    status,
+    reactions,
+    shearDemand,
+    netArea,
+    pcr,
+  };
 }
 
-function atualizarVisual(model) {
-  desenharLigacaoTipo3(model);
+function check(element, mode, stress, resistance, formula) {
+  const safeResistance = Math.max(0.0001, resistance);
+  return {
+    element,
+    mode,
+    stress,
+    resistance: safeResistance,
+    utilization: stress / safeResistance,
+    formula,
+  };
 }
 
-function desenharLigacaoTipo3(model) {
-  const { data, layout, critical, overallStatus } = model;
-  const svg = els.svg;
-  const criticalId = model.geometryError ? "geometry" : critical.id;
-  const statusColor = overallStatus.key === "safe" ? "#14804a" : overallStatus.key === "warn" ? "#b7791f" : "#c43232";
+function render() {
+  const data = readData();
+  const result = analyze(data);
+  const meta = connectionTypes[data.connectionType];
 
-  const maxLength = Math.max(data.lengthA + data.lengthB - data.overlap, data.overlap);
-  const maxWidth = Math.max(data.widthA, data.widthB);
-  const scale = Math.min(760 / maxLength, 230 / maxWidth);
-  const overlapW = data.overlap * scale;
-  const aW = data.lengthA * scale;
-  const bW = data.lengthB * scale;
-  const aH = data.widthA * scale;
-  const bH = data.widthB * scale;
-  const overlapX = 450 - overlapW / 2;
-  const overlapRight = overlapX + overlapW;
-  const aX = overlapRight - aW;
-  const bX = overlapX;
-  const axisY = 235;
-  const aY = axisY - aH / 2;
-  const bY = axisY - bH / 2;
-  const overlapH = Math.min(aH, bH);
-  const overlapY = axisY - overlapH / 2;
-  const pinR = Math.max(13, Math.min(23, data.diameter * scale / 2 + 8));
+  els.connectionLabel.textContent = meta.label;
+  els.statusBadge.textContent = statusText(result.status);
+  els.statusBadge.className = `status ${result.status}`;
+  renderLoadPath(meta.path);
+  renderSummary(data, result);
+  renderChecks(result.checks);
+  renderStressMap(result.checks);
+  renderModeContent(data, result, meta);
+  drawPlan(data, result);
+  drawSection(data);
+  drawIso(data);
+}
 
-  svg.innerHTML = `
-    <defs>
-      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6feb"></path>
-      </marker>
-      <marker id="dimArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M 0 5 L 10 0 L 10 10 z" fill="#64748b"></path>
-      </marker>
-      <pattern id="overlapHatch" width="8" height="8" patternUnits="userSpaceOnUse">
-        <path d="M0 8 L8 0" stroke="#7c4a03" stroke-width="1.2" opacity="0.55"></path>
-      </pattern>
-      <pattern id="washerHatch" width="6" height="6" patternUnits="userSpaceOnUse">
-        <path d="M0 6 L6 0" stroke="#94a3b8" stroke-width="1"></path>
-      </pattern>
-    </defs>
+function renderLoadPath(path) {
+  els.loadPath.innerHTML = path.map((step) => `<span class="path-chip">${step}</span>`).join("");
+}
+
+function renderSummary(data, result) {
+  const governingText = result.governing.utilization >= 1
+    ? "Falhou"
+    : result.governing.utilization >= 0.8
+      ? "Próximo do limite"
+      : "Seguro";
+
+  els.governingFailure.innerHTML = `
+    <strong>${governingText}</strong>
+    <p>Modo governante: ${result.governing.mode.toLowerCase()} em ${result.governing.element}. Utilização ${pct(result.governing.utilization)}.</p>
   `;
 
-  addText(svg, 34, 36, "Vista em planta - Tipo 3: sobreposição simples", "svg-title");
-  addText(svg, 34, 60, "Prancha A e Prancha B alinhadas no mesmo eixo longitudinal", "svg-small");
-  addRect(svg, aX, aY, aW, aH, 10, "#1f77b4", criticalId === "geometry" ? statusColor : "#15557f", 2.5, 0.88);
-  addRect(svg, bX, bY, bW, bH, 10, "#f2b84b", criticalId === "geometry" ? statusColor : "#b97812", 2.5, 0.78);
-  addRect(svg, overlapX, overlapY, overlapW, overlapH, 0, "url(#overlapHatch)", "#7c4a03", 2.5, 1);
-  addText(svg, Math.max(36, aX + 18), aY + 28, "Prancha A", "svg-on-blue");
-  addText(svg, Math.min(760, bX + bW - 128), bY + 28, "Prancha B", "svg-on-orange");
-  addText(svg, overlapX + 12, overlapY + overlapH - 16, "Região de sobreposição", "svg-note");
-
-  desenharForcasTipo3(svg, aX, bX, aW, bW, axisY, data.forceN);
-  desenharPinosTipo3(svg, model, overlapX, overlapY, scale, pinR, criticalId);
-  desenharCaminhoCargaTipo3(svg, layout, overlapX, overlapY, scale);
-  if (data.showDimensions) desenharDimensoesTipo3(svg, model, overlapX, overlapY, overlapW, overlapH, scale, pinR);
-  destacarModoCriticoTipo3(svg, model, overlapX, overlapY, overlapW, overlapH, scale, criticalId);
+  els.summaryCards.innerHTML = [
+    card("Fixadores", `${result.count}`, fastenerTypes[data.fastenerType].label),
+    card("Carga total", `${fmt(Math.hypot(data.loadP, data.loadV) / 1000)} kN`, `Fator ${fmt(data.factor)}`),
+    card("Reações", `${fmt(result.reactions.horizontal)} / ${fmt(result.reactions.vertical)} kN`, "Horizontal / vertical"),
+    card("Material base", result.beam.name, `E = ${fmt(result.beam.E)} MPa`),
+  ].join("");
 }
 
-function desenharForcasTipo3(svg, aX, bX, aW, bW, axisY, forceN) {
-  const leftStart = Math.max(118, aX + 72);
-  const leftEnd = Math.max(30, aX - 18);
-  const rightStart = Math.min(782, bX + bW - 72);
-  const rightEnd = Math.min(870, bX + bW + 18);
-  addLine(svg, leftStart, axisY, leftEnd, axisY, "#1f6feb", 8, true);
-  addText(svg, leftEnd + 6, axisY - 18, `P = ${format(forceN / 1000)} kN`, "svg-label");
-  addLine(svg, rightStart, axisY, rightEnd, axisY, "#1f6feb", 8, true);
-  addText(svg, rightStart + 8, axisY - 18, `P = ${format(forceN / 1000)} kN`, "svg-label");
+function card(title, value, note) {
+  return `<article class="summary-card"><p>${title}</p><strong>${value}</strong><p>${note}</p></article>`;
 }
 
-function pinScreenPosition(pin, overlapX, overlapY, scale) {
-  return { cx: overlapX + pin.x * scale, cy: overlapY + pin.y * scale };
+function renderChecks(checks) {
+  els.checksTable.innerHTML = checks.map((item) => `
+    <tr>
+      <td>${item.element}<br><small>${item.mode}</small></td>
+      <td>${fmt(item.stress)} MPa</td>
+      <td>${fmt(item.resistance)} ${item.mode === "Flambagem" ? "N" : "MPa"}</td>
+      <td>${pct(item.utilization)}</td>
+    </tr>
+  `).join("");
 }
 
-function desenharPinosTipo3(svg, model, overlapX, overlapY, scale, pinR, criticalId) {
-  const connectorFill = model.data.connectorType === "prego" ? "#475569" : "#f8fafc";
-  model.layout.pins.forEach((pin) => {
-    const { cx, cy } = pinScreenPosition(pin, overlapX, overlapY, scale);
-    if (model.data.hasWasher) {
-      const washerR = Math.max(pinR * 1.65, (model.data.washerDiameter * scale) / 2);
-      addCircle(svg, cx, cy, washerR, "#64748b", "url(#washerHatch)", 3);
-    }
-    addCircle(svg, cx, cy, pinR, criticalId === "pin-shear" ? "#c43232" : "#202a34", connectorFill, 4);
-    addCircle(svg, cx, cy, pinR * 0.36, "#64748b", "#dbe4ee", 2);
-    if (model.data.hasNut) desenharPorca(svg, cx, cy, pinR);
-    if (model.data.connectorType === "prego") addLine(svg, cx - pinR * 0.45, cy - pinR * 0.45, cx + pinR * 0.45, cy + pinR * 0.45, "#94a3b8", 2);
-    if (criticalId === "pin-shear") addLine(svg, cx - pinR * 0.72, cy, cx + pinR * 0.72, cy, "#c43232", 4, false, "5 4");
+function renderStressMap(checks) {
+  const byElement = {};
+  checks.forEach((item) => {
+    byElement[item.element] = Math.max(byElement[item.element] || 0, item.utilization);
   });
-}
-
-function desenharPorca(svg, cx, cy, pinR) {
-  const points = [];
-  for (let i = 0; i < 6; i += 1) {
-    const angle = Math.PI / 3 * i + Math.PI / 6;
-    points.push(`${cx + Math.cos(angle) * pinR * 2.15},${cy + Math.sin(angle) * pinR * 2.15}`);
-  }
-  addPoly(svg, points.join(" "), "#475569", "rgba(71,85,105,0.13)", 2.5);
-}
-
-function desenharCaminhoCargaTipo3(svg, layout, overlapX, overlapY, scale) {
-  addText(svg, overlapX + 12, overlapY - 26, "Carga transferida pelos conectores", "svg-note");
-  layout.pins.forEach((pin) => {
-    const { cx, cy } = pinScreenPosition(pin, overlapX, overlapY, scale);
-    addLine(svg, cx - 42, cy - 18, cx - 12, cy - 5, "#2f855a", 3.5, true);
-    addLine(svg, cx + 12, cy + 5, cx + 42, cy + 18, "#2f855a", 3.5, true);
-  });
-}
-
-function desenharDimensoesTipo3(svg, model, overlapX, overlapY, overlapW, overlapH, scale, pinR) {
-  const yDim = overlapY - 52;
-  addDimension(svg, overlapX, yDim, overlapX + overlapW, yDim, `sobreposição = ${format(model.data.overlap)} mm`);
-  const first = model.layout.pins[0];
-  const secondCol = model.layout.pins.find((pin) => pin.col === 1 && pin.row === first.row);
-  const lastCol = Math.max(...model.layout.pins.map((pin) => pin.col));
-  const last = model.layout.pins.find((pin) => pin.col === lastCol && pin.row === first.row) || model.layout.pins[model.layout.pins.length - 1];
-  const p1 = pinScreenPosition(first, overlapX, overlapY, scale);
-  const plast = pinScreenPosition(last, overlapX, overlapY, scale);
-  addDimension(svg, overlapX, yDim + 28, p1.cx - pinR, yDim + 28, `e1 = ${format(model.data.edgeStart)} mm`);
-  if (secondCol) {
-    const p2 = pinScreenPosition(secondCol, overlapX, overlapY, scale);
-    addDimension(svg, p1.cx, yDim + 56, p2.cx, yDim + 56, `s = ${format(model.data.spacingLong)} mm`);
-  }
-  addDimension(svg, plast.cx + pinR, yDim + 28, overlapX + overlapW, yDim + 28, `e2 = ${format(model.data.edgeEnd)} mm`);
-  if (model.layout.rows > 1) {
-    const row0 = model.layout.pins.find((pin) => pin.row === 0 && pin.col === 0);
-    const row1 = model.layout.pins.find((pin) => pin.row === 1 && pin.col === 0);
-    if (row0 && row1) {
-      const pRow0 = pinScreenPosition(row0, overlapX, overlapY, scale);
-      const pRow1 = pinScreenPosition(row1, overlapX, overlapY, scale);
-      addDimension(svg, pRow0.cx - 46, pRow0.cy, pRow1.cx - 46, pRow1.cy, `g = ${format(model.data.gauge)} mm`);
-    }
-  }
-  addCircle(svg, p1.cx, overlapY + overlapH + 36, pinR, "#64748b", "none", 2);
-  addDimension(svg, p1.cx - pinR, overlapY + overlapH + 36, p1.cx + pinR, overlapY + overlapH + 36, `d = ${format(model.data.diameter)} mm`);
-  addLine(svg, overlapX, overlapY, overlapX, overlapY + overlapH, "#64748b", 1.5, false, "5 5");
-}
-
-function destacarModoCriticoTipo3(svg, model, overlapX, overlapY, overlapW, overlapH, scale, criticalId) {
-  if (criticalId.startsWith("bearing")) {
-    model.layout.pins.forEach((pin) => {
-      const { cx, cy } = pinScreenPosition(pin, overlapX, overlapY, scale);
-      addCircle(svg, cx, cy, 33, "#c43232", "rgba(196,50,50,0.14)", 4, "7 5");
-    });
-  }
-  if (criticalId.startsWith("edge")) {
-    const leftPins = model.layout.pins.filter((pin) => pin.col === 0);
-    leftPins.forEach((pin) => {
-      const { cx, cy } = pinScreenPosition(pin, overlapX, overlapY, scale);
-      addRect(svg, overlapX, cy - 22, cx - overlapX, 44, 0, "rgba(196,50,50,0.15)", "#c43232", 3);
-      addLine(svg, overlapX + 4, cy - 18, cx, cy, "#c43232", 3, false, "7 5");
-      addLine(svg, overlapX + 4, cy + 18, cx, cy, "#c43232", 3, false, "7 5");
-    });
-  }
-  if (criticalId.startsWith("net")) {
-    const firstColX = overlapX + model.layout.pins[0].x * scale;
-    addLine(svg, firstColX, overlapY + 8, firstColX, overlapY + overlapH - 8, "#c43232", 5, false, "9 7");
-  }
-}
-
-function atualizarResultados(model) {
-  const { data, pinMaterial, materialA, materialB, forcePerPin, checks, critical, overallStatus, geometryError } = model;
-  const pillClass = overallStatus.key === "warn" ? "warn" : overallStatus.key === "fail" ? "fail" : "";
-  const reason = geometryError ? "geometria da sobreposição" : critical.shortName;
-  const pillText = overallStatus.key === "safe" ? `${overallStatus.label} - FS mín. ${format(critical.safetyFactor)}` : `${overallStatus.label} - ${reason}`;
-  els.overallPill.className = `status-pill ${pillClass}`;
-  els.overallPill.textContent = pillText;
-  els.forceBadge.textContent = `F por conector = ${format(forcePerPin / 1000)} kN (${format(forcePerPin)} N)`;
-
-  const stressAlerts = checks.filter((check) => check.status.key === "fail").map((check) => `${check.shortName} excessivo: utilização ${formatPercent(check.utilization)}.`);
-  const messages = [...model.validation.errors, ...model.validation.warnings, ...stressAlerts];
-  els.warnings.classList.toggle("visible", messages.length > 0);
-  els.warnings.innerHTML = messages.map((message) => `<div>${message}</div>`).join("");
-  els.criticalMode.className = `critical-mode ${pillClass}`;
-  els.criticalMode.innerHTML = renderCriticalMode(model);
-
-  els.summary.innerHTML = `
-    <div class="critical-card ${pillClass}">
-      <h2>Resultado geral</h2>
-      <p><strong>Status:</strong> ${overallStatus.label}</p>
-      <p><strong>Motivo:</strong> ${geometryError ? "Layout inválido na sobreposição" : critical.shortName}</p>
-      <p><strong>Fator de segurança mínimo:</strong> ${geometryError ? "layout inválido" : format(critical.safetyFactor)}</p>
-    </div>
-    <div class="summary-grid">
-      ${metric("Conectores", `${data.pinCount} ${nomeConector(data.connectorType)}${data.pinCount > 1 ? "s" : ""}`)}
-      ${metric("Sobreposição", `${format(data.overlap)} mm`)}
-      ${metric("Geometria", `e1 ${format(data.edgeStart)} | s ${format(data.spacingLong)} | e2 ${format(data.edgeEnd)} | g ${format(data.gauge)} mm`)}
-      ${metric("Prancha A", materialA.name)}
-      ${metric("Prancha B", materialB.name)}
-      ${metric("Material do conector", pinMaterial.name)}
-      ${metric("Força por conector", `${format(forcePerPin)} N`)}
-    </div>
-  `;
-  els.checks.innerHTML = checks.map(renderCheck).join("");
-}
-
-function renderCriticalMode(model) {
-  if (model.geometryError) {
+  els.stressMap.innerHTML = Object.entries(byElement).map(([element, utilization]) => {
+    const css = utilization >= 1 ? "util-failed" : utilization >= 0.8 ? "util-warning" : "util-safe";
     return `
-      <h3>Modo crítico: validação da sobreposição</h3>
-      <p>Os conectores precisam caber dentro da região central sobreposta. Aumente a sobreposição, a largura das pranchas ou reduza diâmetro/espaçamento.</p>
-      <div class="critical-grid">
-        <div class="mini-metric"><span>Sobreposição mínima</span><strong>${format(model.validation.minOverlap)} mm</strong></div>
-        <div class="mini-metric"><span>Largura mínima</span><strong>${format(model.validation.minWidth)} mm</strong></div>
-        <div class="mini-metric"><span>Força por conector</span><strong>${format(model.forcePerPin)} N</strong></div>
+      <div class="stress-row">
+        <span>${element}</span>
+        <span class="bar"><span class="${css}" style="width:${Math.min(100, utilization * 100)}%"></span></span>
+        <span>${pct(utilization)}</span>
       </div>
     `;
-  }
-  return `
-    <h3>Modo crítico: ${model.critical.shortName}</h3>
-    <p>${criticalExplanation(model.critical.id)}</p>
-    <div class="critical-grid">
-      <div class="mini-metric"><span>Utilização</span><strong>${formatPercent(model.critical.utilization)}</strong></div>
-      <div class="mini-metric"><span>Valor calculado</span><strong>${format(model.critical.calculated)} MPa</strong></div>
-      <div class="mini-metric"><span>FS</span><strong>${format(model.critical.safetyFactor)}</strong></div>
-    </div>
-  `;
+  }).join("");
 }
 
-function criticalExplanation(id) {
-  if (id === "pin-shear") return "O conector é o elemento mais solicitado ao corte pela tentativa de deslizamento relativo entre as pranchas.";
-  if (id.startsWith("bearing")) return "A pressão de contato entre conector e parede do furo domina a verificação.";
-  if (id.startsWith("edge")) return "A faixa entre conector e borda da sobreposição é a região mais sensível.";
-  if (id.startsWith("net")) return "Os furos reduzem a área resistente da prancha na seção crítica.";
-  return "A geometria da sobreposição controla o resultado.";
-}
-
-function atualizarPainelExplicativo(model) {
-  const { data, critical, overallStatus, geometryError, forcePerPin } = model;
-  const connectorText = {
-    pino: "Como o conector é pino, porca e arruela ficam ocultas.",
-    parafuso: data.hasNut
-      ? "Como o conector é parafuso, a planta mostra arruela e porca. Esta etapa ainda não calcula protensão, torque ou atrito."
-      : "Como o conector é parafuso, a arruela pode ser mostrada na montagem. Esta etapa ainda não calcula protensão, torque ou atrito.",
-    prego: "Como o conector é prego, porca e arruela ficam ocultas. Verificações específicas de arrancamento e flexão ficam para a próxima etapa.",
-  }[data.connectorType];
-  const statusSentence = geometryError
-    ? "A ligação ainda não pode ser avaliada porque o layout não cabe na sobreposição."
-    : `A ligação ficou com status ${overallStatus.label}. O modo mais crítico foi ${critical.shortName}, com FS = ${format(critical.safetyFactor)}.`;
-
-  let html = `
-    <p>${statusSentence}</p>
-    <p>Esta base representa o Tipo 3: duas pranchas alinhadas no mesmo eixo, sobrepostas no centro, com conectores atravessando as duas peças.</p>
-    <p>A força total P foi convertida para <strong>${format(data.forceN)} N</strong> e dividida igualmente entre <strong>${data.pinCount}</strong> conectores. Cada conector recebeu <strong>${format(forcePerPin)} N</strong>.</p>
-    <p>As forças opostas tentam deslizar uma prancha em relação à outra. A carga passa da Prancha A para os conectores e dos conectores para a Prancha B.</p>
-    <p>${connectorText}</p>
-    <div class="suggestions-box">
-      <h3>Como melhorar?</h3>
-      <ul>${suggestionsFor(geometryError ? "geometry" : critical.id).map((item) => `<li>${item}</li>`).join("")}</ul>
-    </div>
-  `;
-
-  if (state.lessonMode) {
-    html += `
+function renderModeContent(data, result, meta) {
+  if (state.mode === "engenharia") {
+    els.modeTitle.textContent = "Modo Engenharia";
+    els.modeContent.innerHTML = `
+      <p>Sequência aplicada: Carga → Estática → Esforços internos → Tensões → Resistência do material → Aprova ou falha.</p>
+      <span class="formula">ΣFx = 0 → Rx = ${fmt(result.reactions.horizontal)} kN
+ΣFy = 0 → Ry = ${fmt(result.reactions.vertical)} kN
+ΣM = 0 → M = ${fmt(result.reactions.moment)} kN·m
+Força média por fixador = ${fmt(result.shearDemand / 1000)} kN</span>
       <ul>
-        <li><strong>Cisalhamento do conector</strong>: tendência do conector ser cortado pela força transversal.</li>
-        <li><strong>Esmagamento no furo</strong>: pressão local do conector contra a parede do furo em cada prancha.</li>
-        <li><strong>Arrancamento da borda</strong>: ruptura do trecho entre conector e borda da sobreposição.</li>
-        <li><strong>Seção líquida</strong>: área restante depois de descontar furos na Prancha A ou B.</li>
+        ${result.checks.slice(0, 6).map((item) => `<li>${item.mode}: ${item.formula}, utilização ${pct(item.utilization)}.</li>`).join("")}
       </ul>
     `;
+    return;
   }
-  els.explanation.innerHTML = html;
-}
 
-function suggestionsFor(id) {
-  if (id === "geometry") return ["aumentar o comprimento da sobreposição", "aumentar a largura das pranchas", "reduzir diâmetro ou quantidade de conectores", "reduzir o espaçamento e"];
-  if (id === "pin-shear") return ["aumentar o diâmetro do conector", "aumentar a quantidade de conectores", "usar material de conector mais resistente", "reduzir a força aplicada"];
-  if (id.startsWith("bearing")) return ["aumentar a espessura da prancha crítica", "aumentar o número de conectores", "usar material de prancha mais resistente", "aumentar o diâmetro do conector com cuidado"];
-  if (id.startsWith("edge")) return ["aumentar a sobreposição", "afastar conectores das bordas", "aumentar a espessura da prancha crítica"];
-  if (id.startsWith("net")) return ["aumentar a largura da prancha crítica", "reduzir diâmetro dos furos se possível", "usar material mais resistente", "aumentar a espessura"];
-  return ["revisar geometria e carregamento"];
-}
-
-function atualizarGraficos(model) {
-  drawChart(els.charts.force, "Força aplicada x utilização", "P (kN)", "Utilização", sampleSeries("force", model), 1);
-  drawChart(els.charts.diameter, "Diâmetro x cisalhamento", "d (mm)", "τ (MPa)", sampleSeries("diameter", model), model.pinMaterial.shear);
-  drawChart(els.charts.thickness, "Espessura x esmagamento", "t (mm)", "σb (MPa)", sampleSeries("thickness", model), Math.min(model.materialA.bearing, model.materialB.bearing));
-  drawChart(els.charts.spacing, "Espaçamento s x arrancamento", "s (mm)", "Utilização", sampleSeries("spacing", model), 1);
-}
-
-function sampleSeries(kind, model) {
-  const base = model.data;
-  const samples = [];
-  for (let i = 0; i < 18; i += 1) {
-    let value;
-    const overrides = {};
-    if (kind === "force") {
-      value = Math.max(1, base.force * 0.25 + i * base.force * 0.105);
-      overrides.force = value;
-      overrides.forceUnit = base.forceUnit;
-    }
-    if (kind === "diameter") {
-      value = Math.max(2, base.diameter * 0.45 + i * base.diameter * 0.075);
-      overrides.diameter = value;
-    }
-    if (kind === "thickness") {
-      value = Math.max(2, base.thicknessA * 0.45 + i * base.thicknessA * 0.075);
-      overrides.thicknessA = value;
-      overrides.thicknessB = value;
-    }
-    if (kind === "spacing") {
-      value = Math.max(5, base.spacingLong * 0.35 + i * base.spacingLong * 0.08);
-      overrides.spacingLong = value;
-    }
-    const m = calcularTudo(overrides);
-    const y = kind === "force" ? m.critical.utilization : kind === "diameter" ? m.checks[0].calculated : kind === "thickness" ? Math.max(m.checks[1].calculated, m.checks[2].calculated) : Math.max(m.checks[3].utilization, m.checks[4].utilization);
-    samples.push({ x: value, y });
+  if (state.mode === "ruptura") {
+    els.modeTitle.textContent = "Modo Ruptura";
+    els.modeContent.innerHTML = `
+      <p>A carga está multiplicada por <strong>${fmt(data.factor)}</strong>. O primeiro limite alcançado define o modo de falha governante.</p>
+      <span class="formula">Falha governante: ${result.governing.element} · ${result.governing.mode}
+Utilização = ${pct(result.governing.utilization)}
+Critério: ${result.governing.formula}</span>
+      <ul>
+        <li>Verde: baixa utilização.</li>
+        <li>Amarelo: próximo do limite educacional.</li>
+        <li>Vermelho: falha prevista pelo modelo simplificado.</li>
+      </ul>
+    `;
+    return;
   }
-  return samples;
-}
 
-function drawChart(canvas, title, xLabel, yLabel, points, limit) {
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-  const pad = 38;
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y).filter(Number.isFinite);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const maxY = Math.max(limit * 1.15, ...ys, 1);
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "#d8e0e8";
-  ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
-  ctx.fillStyle = "#17212b";
-  ctx.font = "700 13px Segoe UI, Arial";
-  ctx.fillText(title, 14, 22);
-  ctx.font = "11px Segoe UI, Arial";
-  ctx.fillStyle = "#617080";
-  ctx.fillText(xLabel, width - 80, height - 10);
-  ctx.save();
-  ctx.translate(12, 132);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText(yLabel, 0, 0);
-  ctx.restore();
-  const xMap = (x) => pad + ((x - minX) / (maxX - minX || 1)) * (width - pad - 16);
-  const yMap = (y) => height - pad - (Math.min(y, maxY) / maxY) * (height - pad - 34);
-  ctx.strokeStyle = "#cbd5e1";
-  ctx.beginPath();
-  ctx.moveTo(pad, 34);
-  ctx.lineTo(pad, height - pad);
-  ctx.lineTo(width - 16, height - pad);
-  ctx.stroke();
-  ctx.strokeStyle = "#b7791f";
-  ctx.setLineDash([5, 5]);
-  ctx.beginPath();
-  ctx.moveTo(pad, yMap(limit));
-  ctx.lineTo(width - 16, yMap(limit));
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.strokeStyle = "#1f6feb";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    const x = xMap(point.x);
-    const y = yMap(Number.isFinite(point.y) ? point.y : maxY);
-    if (index === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  ctx.fillStyle = "#1f6feb";
-  points.forEach((point) => {
-    ctx.beginPath();
-    ctx.arc(xMap(point.x), yMap(Number.isFinite(point.y) ? point.y : maxY), 2.6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function renderCheck(check) {
-  const cls = check.status.key === "warn" ? "warn" : check.status.key === "fail" ? "fail" : "";
-  return `
-    <article class="check-card">
-      <header>
-        <h3>${check.name}</h3>
-        <span class="status-pill ${cls}">${check.status.label}</span>
-      </header>
-      <span class="formula">${check.formula}</span>
-      <div class="util-bar"><span class="${cls}" style="width:${Math.min(check.utilization * 100, 100)}%"></span></div>
-      <p><strong>${check.symbol}calc:</strong> ${format(check.calculated)} MPa | <strong>${check.symbol}adm:</strong> ${format(check.admissible)} MPa</p>
-      <p><strong>Utilização:</strong> ${formatPercent(check.utilization)} | <strong>FS:</strong> ${format(check.safetyFactor)}</p>
-      <p>${check.details.join(" - ")}</p>
-    </article>
+  els.modeTitle.textContent = "Modo Didático";
+  els.modeContent.innerHTML = `
+    <p>${meta.description}</p>
+    <ul>
+      <li>A carga entra no sistema, passa pelos elementos resistentes e se distribui entre ${result.count} fixadores.</li>
+      <li>O simulador compara tensões calculadas com propriedades didáticas dos materiais, sem aplicar norma técnica.</li>
+      <li>O mapa de tensões resume onde a ligação está trabalhando mais.</li>
+    </ul>
   `;
 }
 
-function metric(label, value) {
-  return `<div class="metric"><p>${label}</p><strong>${value}</strong></div>`;
+function drawPlan(data, result) {
+  const svg = els.planSvg;
+  const width = 820;
+  const height = 380;
+  const rows = data.rows;
+  const cols = data.cols;
+  const groupWidth = (cols - 1) * data.spacing;
+  const groupHeight = (rows - 1) * data.spacing;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const beamW = clamp(data.beamALength, 360, 680);
+  const beamH = clamp(data.beamAWidth, 90, 180);
+  const plateW = Math.max(180, groupWidth + data.edge * 2);
+  const plateH = Math.max(95, groupHeight + data.edge * 2);
+  const beamX = centerX - beamW / 2;
+  const beamY = centerY - beamH / 2;
+  const overlapDraw = Math.max(plateW * 0.42, data.spacing + data.edge);
+  const d = clamp(data.diameter * 1.5, 12, 28);
+
+  const fasteners = [];
+  const startX = centerX - groupWidth / 2;
+  const startY = centerY - groupHeight / 2;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      fasteners.push(`<circle class="fastener" cx="${startX + c * data.spacing}" cy="${startY + r * data.spacing}" r="${d / 2}" />`);
+    }
+  }
+
+  const primaryElement = data.connectionType === "beamColumn" || data.connectionType === "angle"
+    ? `<rect class="element-beam-a" x="${beamX}" y="${beamY}" width="${beamW}" height="${beamH}" rx="5" />`
+    : `<rect class="element-beam-a" x="${beamX}" y="${beamY}" width="${beamW / 2 + overlapDraw / 2}" height="${beamH}" rx="5" />`;
+
+  const secondElement = data.connectionType === "beamColumn"
+    ? `<rect class="element-beam-b" x="${centerX + beamW / 2 - 115}" y="45" width="120" height="290" rx="4" />`
+    : data.connectionType === "angle"
+      ? `<path class="element-angle" d="M${centerX - 120} ${centerY + 70} H${centerX + 120} V${centerY + 112} H${centerX - 78} V${centerY + 170} H${centerX - 120} Z" />`
+      : `<rect class="element-beam-b" x="${centerX - overlapDraw / 2}" y="${beamY}" width="${beamW / 2 + overlapDraw / 2}" height="${beamH}" rx="5" />`;
+
+  const jointLine = data.connectionType === "beamColumn" || data.connectionType === "angle"
+    ? ""
+    : `<line class="dim" x1="${centerX}" y1="${beamY - 10}" x2="${centerX}" y2="${beamY + beamH + 10}" />`;
+
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.innerHTML = defs() + `
+    ${primaryElement}
+    ${secondElement}
+    <rect class="element-plate" x="${centerX - plateW / 2}" y="${centerY - plateH / 2}" width="${plateW}" height="${plateH}" rx="4" opacity="0.86" />
+    ${jointLine}
+    ${fasteners.join("")}
+    <line class="force-arrow" x1="45" y1="${centerY}" x2="${centerX - beamW / 2 + 90}" y2="${centerY}" />
+    <line class="force-arrow" x1="${centerX + 95}" y1="${centerY - 110}" x2="${centerX + 95}" y2="${centerY - 50}" />
+    <line class="dim" x1="${centerX - groupWidth / 2}" y1="${centerY + plateH / 2 + 22}" x2="${centerX + groupWidth / 2}" y2="${centerY + plateH / 2 + 22}" />
+    <text class="svg-label" x="54" y="${centerY - 18}">Carga</text>
+    <text class="svg-label" x="${beamX + 18}" y="${beamY + 24}">Viga A</text>
+    ${data.connectionType === "beamColumn" || data.connectionType === "angle" ? "" : `<text class="svg-label" x="${centerX + overlapDraw / 2 + 18}" y="${beamY + 24}">Viga B</text>`}
+    <text class="svg-label" x="${centerX - 38}" y="${centerY - plateH / 2 - 12}">${data.connectionType === "angle" ? "Cantoneira" : "Chapa"}</text>
+    <text class="svg-label" x="${centerX - 56}" y="${centerY + plateH / 2 + 45}">s = ${fmt(data.spacing)} mm</text>
+    <text class="svg-label" x="590" y="344">Utilização máx.: ${pct(result.governing.utilization)}</text>
+  `;
 }
 
-function format(value) {
-  if (!Number.isFinite(value)) return "inválido";
-  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
+function drawSection(data) {
+  const svg = els.sectionSvg;
+  const width = 460;
+  const height = 260;
+  const centerX = width / 2;
+  const y = 128;
+  const beamT = clamp(data.beamAHeight / 2, 34, 68);
+  const plateT = clamp(data.plateThickness * 3, 16, 34);
+  const boltR = clamp(data.diameter * 0.75, 8, 18);
+  const washer = data.hasWasher ? `<rect class="element-plate" x="${centerX - 54}" y="${y - beamT / 2 - 18}" width="108" height="10" rx="3" />` : "";
+  const nut = data.hasNut ? `<polygon class="fastener" points="${centerX - 26},${y + beamT / 2 + 26} ${centerX + 26},${y + beamT / 2 + 26} ${centerX + 34},${y + beamT / 2 + 48} ${centerX - 34},${y + beamT / 2 + 48}" />` : "";
+
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.innerHTML = defs() + `
+    <rect class="element-beam-a" x="64" y="${y - beamT / 2}" width="332" height="${beamT}" rx="5" />
+    <rect class="element-plate" x="64" y="${y - beamT / 2 - plateT}" width="332" height="${plateT}" rx="3" />
+    ${washer}
+    <rect class="fastener" x="${centerX - boltR / 2}" y="${y - beamT / 2 - plateT - 18}" width="${boltR}" height="${beamT + plateT + 56}" rx="${boltR / 3}" />
+    <circle class="fastener" cx="${centerX}" cy="${y - beamT / 2 - plateT - 22}" r="${boltR * 1.25}" />
+    ${nut}
+    <text class="svg-label" x="74" y="${y - beamT / 2 - plateT - 18}">Chapa ${fmt(data.plateThickness)} mm</text>
+    <text class="svg-label" x="74" y="${y + beamT / 2 + 24}">Viga ${fmt(data.beamAHeight)} mm</text>
+    <text class="svg-label" x="${centerX + 44}" y="${y + 6}">d = ${fmt(data.diameter)} mm</text>
+  `;
 }
 
-function formatPercent(value) {
-  if (!Number.isFinite(value)) return "inválido";
-  return `${format(value * 100)}%`;
+function drawIso(data) {
+  const svg = els.isoSvg;
+  const width = 460;
+  const height = 260;
+  const x = 92;
+  const y = 72;
+  const w = 250;
+  const h = 82;
+  const dx = 58;
+  const dy = 36;
+  const group = [];
+  for (let r = 0; r < data.rows; r += 1) {
+    for (let c = 0; c < data.cols; c += 1) {
+      group.push(`<ellipse class="fastener" cx="${196 + c * 42}" cy="${112 + r * 30}" rx="8" ry="5" />`);
+    }
+  }
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.innerHTML = `
+    <polygon class="element-beam-a" points="${x},${y} ${x + w},${y} ${x + w + dx},${y + dy} ${x + dx},${y + dy}" />
+    <polygon class="element-beam-a" points="${x},${y} ${x + dx},${y + dy} ${x + dx},${y + dy + h} ${x},${y + h}" opacity="0.78" />
+    <polygon class="element-beam-b" points="${x + 74},${y + 52} ${x + w + 70},${y + 52} ${x + w + dx + 70},${y + dy + 52} ${x + dx + 74},${y + dy + 52}" />
+    <polygon class="element-plate" points="174,84 330,84 365,106 209,106" opacity="0.9" />
+    ${group.join("")}
+    <text class="svg-label" x="92" y="208">Modelo 3D simplificado</text>
+  `;
 }
 
-function addRect(svg, x, y, width, height, radius, fill, stroke, strokeWidth, opacity = 1) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  node.setAttribute("x", x);
-  node.setAttribute("y", y);
-  node.setAttribute("width", Math.max(0, width));
-  node.setAttribute("height", Math.max(0, height));
-  node.setAttribute("rx", radius);
-  node.setAttribute("fill", fill);
-  node.setAttribute("stroke", stroke);
-  node.setAttribute("stroke-width", strokeWidth);
-  node.setAttribute("opacity", opacity);
-  svg.appendChild(node);
+function defs() {
+  return `
+    <defs>
+      <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+        <path d="M2,2 L10,6 L2,10 Z" fill="#ef4444"></path>
+      </marker>
+    </defs>
+  `;
 }
 
-function addCircle(svg, cx, cy, r, stroke, fill, strokeWidth, dash = "") {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  node.setAttribute("cx", cx);
-  node.setAttribute("cy", cy);
-  node.setAttribute("r", Math.max(0, r));
-  node.setAttribute("fill", fill);
-  node.setAttribute("stroke", stroke);
-  node.setAttribute("stroke-width", strokeWidth);
-  if (dash) node.setAttribute("stroke-dasharray", dash);
-  svg.appendChild(node);
+function exportPlanPng() {
+  const source = new XMLSerializer().serializeToString(els.planSvg);
+  const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1640;
+    canvas.height = 760;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    const link = document.createElement("a");
+    link.download = "laboratorio-ligacoes-v1.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+  image.src = url;
 }
 
-function addLine(svg, x1, y1, x2, y2, stroke, strokeWidth, arrow = false, dash = "") {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  node.setAttribute("x1", x1);
-  node.setAttribute("y1", y1);
-  node.setAttribute("x2", x2);
-  node.setAttribute("y2", y2);
-  node.setAttribute("stroke", stroke);
-  node.setAttribute("stroke-width", strokeWidth);
-  node.setAttribute("stroke-linecap", "round");
-  if (arrow) node.setAttribute("marker-end", "url(#arrow)");
-  if (dash) node.setAttribute("stroke-dasharray", dash);
-  svg.appendChild(node);
+function statusText(status) {
+  if (status === "failed") return "Falhou";
+  if (status === "warning") return "Próximo do limite";
+  return "Seguro";
 }
 
-function addPoly(svg, points, stroke, fill, strokeWidth) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-  node.setAttribute("points", points);
-  node.setAttribute("fill", fill);
-  node.setAttribute("stroke", stroke);
-  node.setAttribute("stroke-width", strokeWidth);
-  svg.appendChild(node);
+function num(input) {
+  return Math.max(0, Number(input.value) || 0);
 }
 
-function addText(svg, x, y, text, className) {
-  const node = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  node.setAttribute("x", x);
-  node.setAttribute("y", y);
-  node.setAttribute("class", className);
-  node.textContent = text;
-  svg.appendChild(node);
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function addDimension(svg, x1, y1, x2, y2, label) {
-  addLine(svg, x1, y1, x2, y2, "#64748b", 1.8, false);
-  const line = svg.lastChild;
-  line.setAttribute("marker-start", "url(#dimArrow)");
-  line.setAttribute("marker-end", "url(#dimArrow)");
-  addText(svg, (x1 + x2) / 2 - 42, (y1 + y2) / 2 - 8, label, "svg-dim");
+function fmt(value) {
+  if (!Number.isFinite(value)) return "0";
+  if (Math.abs(value) >= 1000) return value.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
-function atualizarOpcoesCondicionais() {
-  els.boltOptions.hidden = inputs.connectorType.value !== "parafuso";
+function pct(value) {
+  return `${Math.round(value * 100)}%`;
 }
 
-function atualizar() {
-  atualizarOpcoesCondicionais();
-  const model = calcularTudo();
-  atualizarVisual(model);
-  atualizarResultados(model);
-  atualizarPainelExplicativo(model);
-  atualizarGraficos(model);
-}
-
-els.form.addEventListener("input", atualizar);
-els.form.addEventListener("change", atualizar);
-els.lessonToggle.addEventListener("click", () => {
-  state.lessonMode = !state.lessonMode;
-  els.lessonToggle.textContent = state.lessonMode ? "Desativar Modo Aula" : "Ativar Modo Aula";
-  atualizar();
-});
-
-atualizar();
+boot();
